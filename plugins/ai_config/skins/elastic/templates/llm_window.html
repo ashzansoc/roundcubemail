@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Gemini AI Assistant</title>
+    <link rel="stylesheet" href="skins/elastic/deps/bootstrap.min.css">
+    <style>
+        body {
+            padding: 20px;
+            font-family: sans-serif;
+            background: #f4f4f4;
+        }
+
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .email-ref {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #fafafa;
+            border-radius: 4px;
+            font-size: 0.9em;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .email-ref strong {
+            color: #333;
+        }
+
+        #response-area {
+            background: #f0f8ff;
+            padding: 15px;
+            border: 1px solid #cce5ff;
+            border-radius: 4px;
+            margin-top: 20px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+
+        .error {
+            color: #e00;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h2>Gemini AI Assistant</h2>
+
+        <div class="row">
+            <div class="col-md-5">
+                <h4>Selected Context</h4>
+                <div id="email-list">
+                    <!-- Emails injected here -->
+                    <roundcube:object name="plugin.render_selected_emails" />
+                </div>
+            </div>
+            <div class="col-md-7">
+                <h4>Prompt</h4>
+                <textarea id="ai-prompt" class="form-control" rows="4"
+                    placeholder="E.g., Summarize these emails into a daily briefing..."></textarea>
+                <br>
+                <div style="margin-bottom:10px;">
+                    Model:
+                    <select id="model-select" class="form-control" style="display:inline-block; width:auto;">
+                        <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                        <option value="gemini-pro-latest">gemini-pro-latest</option>
+                        <option value="gemini-flash-latest">gemini-flash-latest</option>
+                    </select>
+                    <button onclick="callGemini()" class="btn btn-success" style="margin-left:10px;">Generate</button>
+                    <button onclick="checkModels()" class="btn btn-info btn-sm" style="margin-left:10px;">List
+                        Models</button>
+                </div>
+                <div id="response-area">Response will appear here...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = 'AIzaSyDP_9BoFeVxbVZVeldiQ53gjAXTNQRup9A';
+
+        function getUrl() {
+            const model = document.getElementById('model-select').value;
+            // All these newer models seem to use v1beta
+            return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+        }
+
+        function callGemini() {
+            const prompt = document.getElementById('ai-prompt').value;
+            const context = document.getElementById('email-context-data').innerText;
+
+            if (!prompt) {
+                alert('Please enter a prompt.');
+                return;
+            }
+
+            const responseArea = document.getElementById('response-area');
+            responseArea.innerHTML = '<span class="loading">Generating response...</span>';
+
+            const payload = {
+                "contents": [{
+                    "parts": [{
+                        "text": "Context (Emails):\n" + context + "\n\nUser Task:\n" + prompt
+                    }]
+                }]
+            };
+
+            fetch(getUrl(), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.candidates && data.candidates[0].content) {
+                        const text = data.candidates[0].content.parts[0].text;
+                        responseArea.innerText = text;
+                    } else if (data.error) {
+                        responseArea.innerHTML = '<span class="error">API Error: ' + data.error.message + '</span>';
+                        if (data.error.code === 404) {
+                            responseArea.innerHTML += '<br><br><b>Tip:</b> Try clicking "List Models" to see what your API key supports.';
+                        }
+                    } else {
+                        responseArea.innerText = "Error: " + JSON.stringify(data);
+                    }
+                })
+                .catch(error => {
+                    responseArea.innerText = "Network Error: " + error.message;
+                });
+        }
+
+        function checkModels() {
+            const responseArea = document.getElementById('response-area');
+            responseArea.innerHTML = '<span class="loading">Fetching available models...</span>';
+
+            fetch('https://generativelanguage.googleapis.com/v1/models?key=' + API_KEY)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.models) {
+                        const names = data.models.map(m => m.name.replace('models/', ''));
+                        responseArea.innerHTML = '<b>Available Models:</b><br>' + names.join('<br>');
+                    } else {
+                        responseArea.innerText = "Could not list models: " + JSON.stringify(data);
+                    }
+                })
+                .catch(e => responseArea.innerText = "List failed: " + e.message);
+        }
+    </script>
+
+    <div id="email-context-data" style="display:none;">
+        <roundcube:object name="plugin.raw_context_data" />
+    </div>
+
+</body>
+
+</html>

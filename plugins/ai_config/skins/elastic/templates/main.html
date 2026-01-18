@@ -1,0 +1,116 @@
+<include href="layout.html" />
+
+<h1 class="voice">AI Configuration & Consolidation</h1>
+
+<div class="content listbox" style="padding: 20px;">
+    <div class="scroller">
+        <form action="./?_task=ai_config&_action=process" method="post" style="max-width: 600px; margin-bottom: 30px;">
+            <div class="form-group row" style="margin-bottom: 15px;">
+                <label class="col-sm-3 col-form-label">Sort By:</label>
+                <div class="col-sm-9">
+                    <select name="sort_by" class="form-control" style="width: 100%; padding: 5px;">
+                        <option value="date">Date</option>
+                        <option value="subject">Subject</option>
+                        <option value="from">Sender</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group row" style="margin-bottom: 15px;">
+                <label class="col-sm-3 col-form-label">Filter Sender:</label>
+                <div class="col-sm-9">
+                    <input type="text" name="filter_from" class="form-control" placeholder="Enter sender..."
+                        style="width: 100%; padding: 5px;">
+                </div>
+            </div>
+
+            <div class="form-group row" style="margin-bottom: 15px;">
+                <label class="col-sm-3 col-form-label">Filter Subject:</label>
+                <div class="col-sm-9">
+                    <input type="text" name="filter_subject" class="form-control" placeholder="Enter keywords..."
+                        style="width: 100%; padding: 5px;">
+                </div>
+            </div>
+
+            <div class="form-group" style="text-align: right;">
+                <button type="submit" class="btn btn-primary mainaction">Fetch & Consolidate</button>
+            </div>
+        </form>
+
+        <div id="ai-results-container">
+            <h2 class="voice">Consolidated Results</h2>
+            <div class="ai-controls" style="margin-bottom: 15px; display:none;" id="ai-llm-controls">
+                <button onclick="openLLMWindow()" class="btn btn-secondary">Analyze Selected with Gemini AI</button>
+            </div>
+            <div id="ai-output">
+                <!-- Data will be injected here via JS or server loop -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden form for passing data to LLM window -->
+<form id="llm-form" action="./?_task=ai_config&_action=llm_window" method="post" target="llm_window_target"
+    style="display:none;">
+    <input type="hidden" name="selected_emails" id="llm_selected_emails">
+</form>
+
+<script>
+    // Simple script to render results passed via set_env
+    if (window.rcmail && rcmail.env.ai_results) {
+        var results = rcmail.env.ai_results;
+        var container = document.getElementById('ai-output');
+
+        // Show controls
+        document.getElementById('ai-llm-controls').style.display = 'block';
+
+        var html = '<table style="width:100%; border-collapse: collapse;">';
+        html += '<thead><tr style="background:#eee; text-align:left;"><th style="padding:10px;"><input type="checkbox" onchange="toggleAll(this)"></th><th>Subject</th><th>From</th><th>Date</th><th>Attachment</th><th>Body Preview</th></tr></thead><tbody>';
+
+        results.forEach(function (item, index) {
+            html += '<tr style="border-bottom:1px solid #ddd;">';
+            // Store full data in value as JSON for easy retrieval
+            var val = encodeURIComponent(JSON.stringify(item));
+            html += '<td style="padding:10px;"><input type="checkbox" class="email-checkbox" value="' + val + '"></td>';
+            html += '<td style="padding:10px;">' + item.subject + '</td>';
+            html += '<td style="padding:10px;">' + item.from + '</td>';
+            html += '<td style="padding:10px;">' + item.date + '</td>';
+            html += '<td style="padding:10px;">' + item.has_attachments + '</td>';
+            html += '<td style="padding:10px;">' + (item.body ? item.body.substring(0, 100) + '...' : 'No Text') + '</td>';
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    } else if (document.getElementById('ai-output')) {
+        document.getElementById('ai-output').innerText = "No results yet. Use the filter above.";
+    }
+
+    function toggleAll(source) {
+        var checkboxes = document.querySelectorAll('.email-checkbox');
+        for (var i = 0; i < checkboxes.length; i++) {
+            checkboxes[i].checked = source.checked;
+        }
+    }
+
+    function openLLMWindow() {
+        var selected = [];
+        var checkboxes = document.querySelectorAll('.email-checkbox:checked');
+        if (checkboxes.length === 0) {
+            alert('Please select at least one email.');
+            return;
+        }
+
+        for (var i = 0; i < checkboxes.length; i++) {
+            selected.push(JSON.parse(decodeURIComponent(checkboxes[i].value)));
+        }
+
+        document.getElementById('llm_selected_emails').value = JSON.stringify(selected);
+
+        // Open new window
+        window.open('', 'llm_window_target', 'width=800,height=900,scrollbars=yes,resizable=yes');
+
+        // Submit form to that window
+        document.getElementById('llm-form').submit();
+    }
+</script>

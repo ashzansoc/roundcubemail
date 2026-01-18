@@ -56,7 +56,14 @@ const ALLOWED_PATHS = [
 
 define('INSTALL_PATH', realpath(__DIR__ . '/..') . '/');
 
-$path = validateStaticFile($_SERVER['PATH_INFO']);
+$path_info = $_SERVER['PATH_INFO'] ?? null;
+if (!$path_info && isset($_SERVER['REQUEST_URI'])) {
+    $uri_parts = explode('static.php', $_SERVER['REQUEST_URI'], 2);
+    if (isset($uri_parts[1])) {
+        $path_info = $uri_parts[1];
+    }
+}
+$path = validateStaticFile($path_info ?? '');
 
 if (!$path) {
     http_response_code(404);
@@ -105,7 +112,8 @@ function validateStaticFile(string $path): ?string
     }
 
     // Allow images in the root folder (#10030)
-    if (!$found && !str_contains($path, '/') && !str_contains($path, '\\')
+    if (
+        !$found && !str_contains($path, '/') && !str_contains($path, '\\')
         && str_starts_with(SUPPORTED_TYPES[strtolower($ext)], 'image/')
     ) {
         $found = true;
